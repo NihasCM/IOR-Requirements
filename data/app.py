@@ -1,12 +1,14 @@
 from flask import Flask, jsonify, send_from_directory, request
+import os
 import pandas as pd
 
 app = Flask(__name__)
 
 # Define file paths for switching
+current_dir = os.path.dirname(__file__)
 file_paths = {
-    "file1": "C:/Users/Nihas/Desktop/data/test file.xlsx",
-    "file2": "C:/Users/Nihas/Desktop/data/Arista-KZ-Short-MPL 2025.02.14.xlsx"
+    "file1": os.path.join(current_dir, "data", "test file.xlsx"),
+    "file2": os.path.join(current_dir, "data", "Arista-KZ-Short-MPL 2025.02.14.xlsx")
 }
 
 # Define sheet names for each file
