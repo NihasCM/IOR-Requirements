@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel Data Display with Tabs</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        let selectedFile = "file1"; // Default file selection
+        let currentSearchQuery = ""; // Variable to store the current search query
+        let isDataLoaded = false; // Flag to check if data has been loaded
+        let generalData = ""; // Variable to store general data
+
+        document.addEventListener("DOMContentLoaded", function () {
+            // Set initial header
+            document.querySelector('h1').textContent = "KZ IOR Requirements"; // Set initial header
+            // Clear all table bodies on page load
+            clearTableBodies();
+
+            // Add event listener for Enter key press
+            document.getElementById("part-number").addEventListener("keydown", function(event) {
+                if (event.key === "Enter") {
+                    searchPartNumber(); // Trigger search on Enter key press
+                }
+            });
+        });
+
+        function clearTableBodies() {
+            document.getElementById('compliance-table-body').innerHTML = "";
+            document.getElementById('licenses-table-body').innerHTML = "";
+        }
+
+        async function fetchGeneralData() {
+            try {
+                const response = await fetch(`/data?file=${selectedFile}`); // Fetch general data
+                const data = await response.text();
+                document.getElementById('general-table-body').innerHTML = data;
+                generalData = data; // Store the fetched general data
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
+        }
+
+        function switchFile() {
+            selectedFile = document.getElementById("file-selector").value;
+            clearTableBodies(); // Clear table bodies when file is switched
+            fetchGeneralData(); // Refresh data when file is switched
+
+            // Change the <h1> based on the selected file
+            const header = document.querySelector('h1');
+            if (selectedFile === "file1") {
+                header.textContent = "Vast Data KZ";
+            } else if (selectedFile === "file2") {
+                header.textContent = "Arista KZ";
+            }
+        }
+
+        function validateSearch() {
+            const dropdown = document.getElementById("file-selector");
+            if (dropdown.value === "") {
+                const errorMessage = document.createElement("span");
+                errorMessage.className = "error-message"; // Add class for error message
+
+                errorMessage.textContent = "Please select a file.";
+                errorMessage.style.color = "red";
+                errorMessage.style.marginLeft = "2px"; // Adjust margin for closer alignment
+
+                const dropdownContainer = document.querySelector('.file-selection-container');
+                const existingErrorMessage = document.querySelector('.error-message');
+                if (existingErrorMessage) {
+                    existingErrorMessage.remove(); // Remove existing error message
+                }
+
+                dropdownContainer.appendChild(errorMessage); // Append the new error message
+
+                dropdown.classList.add("border-red-500"); // Apply red outline
+                let flickerCount = 0; // Initialize flicker count
+
+                const flickerInterval = setInterval(() => {
+                    dropdown.classList.toggle("border-red-500"); // Toggle red outline
+                    flickerCount++;
+                    if (flickerCount >= 6) { // Flicker 6 times
+                        clearInterval(flickerInterval); // Stop flickering
+                        dropdown.classList.remove("border-red-500"); // Ensure red outline is removed
+                    }
+                }, 100); // Flicker every 100ms
+
+                return false; // Indicate validation failure
+            }
+            return true; // Indicate validation success
+        }
+
+        async function searchPartNumber() { // Search for part number in the selected tab
+            const partNumber = document.getElementById("part-number").value.trim().replace(/\s+/g, ' ');
+            currentSearchQuery = partNumber; // Update the current search query
+
+            if (!validateSearch()) {
+                return; // Stop if validation fails
+            }
+
+            if (partNumber === "") {
+                alert("Please enter a part number");
+                return;
+            }
+            clearTableBodies(); // Clear table bodies before loading new data
+            document.getElementById('general-table-body').innerHTML = "<tr><td colspan='6' class='text-center p-4'>Loading...</td></tr>";
+            try {
+                const response = await fetch(`/global_search?part_number=${encodeURIComponent(partNumber)}&selected_file=${selectedFile}`); // Fetch search results
+
+                const data = await response.text();
+                if (data.includes("No results found")) {
+                    document.getElementById('general-table-body').innerHTML = "<tr><td colspan='6' class='text-center p-4'>No results found</td></tr>"; // Display no results message
+                } else {
+                    document.getElementById('general-table-body').innerHTML = data; // Update with actual data
+                }
+                generalData = data; // Store the fetched general data
+                isDataLoaded = true; // Set flag to true after data is loaded
+            } catch (error) {
+                console.error('Error fetching search results:', error);
+            }
+            // document.getElementById("part-number").value = ""; // Clear the search input
+        }
+
+        async function openTab(tabName) { // Open the specified tab and fetch data
+            const tabs = document.querySelectorAll('.tab-content'); // Get all tab content elements
+            tabs.forEach(tab => {
+                tab.classList.add('hidden');
+            });
+            document.getElementById(tabName).classList.remove('hidden'); // Show the selected tab
+
+            // Clear the table body for the selected tab
+            if (tabName === 'general') {
+                document.getElementById('general-table-body').innerHTML = generalData; // Display stored general data
+            } else {
+                clearTableBodies(); // Clear other table bodies
+            }
+
+            // Retain the current search query in the search input field
+            document.getElementById("part-number").value = currentSearchQuery;
+
+            // Fetch data for the current tab only if it is not empty
+            if (tabName === 'compliance') { // If the compliance tab is opened
+                if (isDataLoaded) { // Only fetch if data has been loaded
+                    const response = await fetch(`/compliance?file=${selectedFile}`); // Fetch compliance data
+                    const data = await response.text();
+                    if (data.includes("No results found")) {
+                        document.getElementById('compliance-table-body').innerHTML = "<tr><td colspan='6' class='text-center p-4'>No results found</td></tr>"; // Display no results message
+                    } else {
+                        document.getElementById('compliance-table-body').innerHTML = data; // Insert compliance data
+                    }
+                }
+            } else if (tabName === 'licenses') { // If the licenses tab is opened
+                if (isDataLoaded) { // Only fetch if data has been loaded
+                    const response = await fetch(`/licenses?file=${selectedFile}`); // Fetch licenses data
+                    const data = await response.text();
+                    if (data.includes("No results found")) {
+                        document.getElementById('licenses-table-body').innerHTML = "<tr><td colspan='6' class='text-center p-4'>No results found</td></tr>"; // Display no results message
+                    } else {
+                        document.getElementById('licenses-table-body').innerHTML = data; // Insert licenses data
+                    }
+                }
+            }
+
+            // Automatically filter results when switching tabs
+            if (tabName !== 'general' && currentSearchQuery) {
+                filterRows();
+            }
+
+            document.querySelectorAll(".tab-button").forEach(tab => tab.classList.remove("bg-[#003366]", "text-[#FFFFFF]"));
+            document.querySelector(`[data-tab='${tabName}']`).classList.add("bg-[#003366]", "text-[#FFFFFF]");
+        }
+
+        function filterRows() {
+            const partNumber = currentSearchQuery; // Use the stored search query without converting to lowercase
+
+            const tabs = ['general', 'compliance', 'licenses']; // List of all tabs to filter
+
+            tabs.forEach(tab => {
+                const tableBody = document.getElementById(`${tab}-table-body`);
+                const rows = tableBody.getElementsByTagName("tr");
+
+                for (let i = 0; i < rows.length; i++) {
+                    const cells = rows[i].getElementsByTagName("td");
+                    let rowContainsPartNumber = false;
+
+                    for (let j = 0; j < cells.length; j++) {
+                        if (cells[j] && cells[j].innerText.trim() === partNumber) { // Check for exact match
+                            rowContainsPartNumber = true;
+                            break;
+                        }
+                    }
+
+                    rows[i].style.display = rowContainsPartNumber ? "" : "none";
+                }
+            });
+        }
+    </script>
+</head>
+<body class="bg-gradient-to-r from-[#001F3F] to-[#003366] p-6 backdrop-blur">
+
+<div class="max-w-8xl mx-auto bg-[#FFFFFF] p-6 rounded-lg shadow-md">
+    <h1 class="text-3xl font-bold mb-4 text-[#003366] text-left flex justify-between items-center" style="font-family: 'Montserrat', sans-serif;">
+        KZ IOR Requirements
+    </h1>
+    <img src="static/images/logo.png" alt="Arista KZ Logo" width="200" height="200" style="float: right; margin-top: -60px;">
+
+    <!-- File Selection Dropdown -->
+    <div class="mb-4 file-selection-container">
+        <label for="file-selector" class="font-semibold text-[#003366]">Choose File:</label>
+        <select id="file-selector" class="border p-2 rounded-lg" onchange="switchFile()">
+            <option value="" disabled selected>Choose File</option>
+            <option value="file1">Vast Data KZ</option>
+            <option value="file2">Arista-KZ</option>
+        </select>
+        <span class="error-message" style="color: red; margin-left: 2px;"></span>
+    </div>
+
+    <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 mb-6">
+        <input type="text" id="part-number" class="border p-3 w-full rounded-lg text-[#0056B3] focus:outline-none focus:ring-2 focus:ring-yellow-500 placeholder-gray-600" placeholder="Enter Part Number">
+        <button onclick="searchPartNumber()" class="bg-[#003366] text-[#FFFFFF] px-6 py-3 rounded-lg hover:bg-[#0056B3] transition">Search</button>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex space-x-2 mb-4">
+        <button class="tab-button px-4 py-2 rounded-lg bg-[#003366] text-[#FFFFFF] hover:bg-[#0056B3] active:bg-[#0056B3] transition" data-tab="general" onclick="openTab('general')">General Info</button>
+        <button class="tab-button px-4 py-2 rounded-lg bg-[#003366] text-[#FFFFFF] hover:bg-[#0056B3] active:bg-[#0056B3] transition" data-tab="compliance" onclick="openTab('compliance')">Compliance</button>
+        <button class="tab-button px-4 py-2 rounded-lg bg-[#003366] text-[#FFFFFF] hover:bg-[#0056B3] active:bg-[#0056B3] transition" data-tab="licenses" onclick="openTab('licenses')">Licenses</button>
+    </div>
+
+    <!-- General Info Tab -->
+    <div id="general" class="tab-content">
+        <h2 class="text-xl font-semibold mb-2 text-[#003366]">General Information</h2>
+        <div class="overflow-x-auto">
+            <table class="w-full border-collapse border-gray-300 bg-[#E6F0FA] shadow-md rounded-lg text-sm sm:text-base">
+                <thead class="bg-[#003366] text-[#FFFFFF]">
+                    <tr class="text-left">
+                        <th class="p-4 border border-gray-300">Model#</th>
+                        <th class="p-4 border border-gray-300">Part Number</th>
+                        <th class="p-4 border border-gray-300">Net Weight (kgs)</th>
+                        <th class="p-4 border border-gray-300">COO</th>
+                        <th class="p-4 border border-gray-300">Product Description (RU)</th>
+                        <th class="p-4 border border-gray-300">OEM Name</th>
+                    </tr>
+                </thead>
+                <tbody id="general-table-body" class="bg-[#FFFFFF]">
+                    <tr class="hover:bg-gray-200">
+                        <!-- Data will be dynamically inserted here -->
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Compliance Tab -->
+    <div id="compliance" class="tab-content hidden">
+        <h2 class="text-xl font-semibold mb-2 text-[#003366]">Compliance Information</h2>
+        <div class="overflow-x-auto">
+            <table class="w-full border-collapse border-gray-300 bg-[#E6F0FA] shadow-md rounded-lg text-sm sm:text-base">
+                <thead class="bg-[#003366] text-[#FFFFFF]">
+                    <tr class="text-left">
+                        <th class="p-4 border border-gray-300">HS Code</th>
+                        <th class="p-4 border border-gray-300">ECCN</th>
+                        <th class="p-4 border border-gray-300">Part Number</th>
+                    </tr>
+                </thead>
+                <tbody id="compliance-table-body" class="bg-[#E6F0FA]">
+                    <tr class="hover:bg-gray-200">
+                        <!-- Data will be dynamically inserted here -->
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Licenses Tab -->
+    <div id="licenses" class="tab-content hidden">
+        <h2 class="text-xl font-semibold mb-2 text-[#003366]">Licenses Information</h2>
+        <div class="overflow-x-auto">
+            <table class="w-full border-collapse border-gray-300 bg-[#E6F0FA] shadow-md rounded-lg text-sm sm:text-base">
+                <thead class="bg-[#003366] text-[#FFFFFF]">
+                    <tr class="text-left">
+                        <th class="p-4 border border-gray-300">MIC License</th>
+                        <th class="p-4 border border-gray-300">"MIC conclusion"</th>
+                        <th class="p-4 border border-gray-300">ISP License (IMPORT)</th>
+                        <th class="p-4 border border-gray-300">ISP License (EXPORT)</th>
+                        <th class="p-4 border border-gray-300">OIP</th>
+                        <th class="p-4 border border-gray-300">DoC/CoC</th>
+                        <th class="p-4 border border-gray-300">CNS Conclusion</th>
+                        <th class="p-4 border border-gray-300">Encryption Notification</th>
+                        <th class="p-4 border border-gray-300">ISP conclusion (IMPORT)</th>
+                        <th class="p-4 border border-gray-300">"ISP conclusion (EXPORT)"</th>
+                        <th class="p-4 border border-gray-300">Shipping approval by PN</th>
+                        <th class="p-4 border border-gray-300">Part Number</th>
+                        <th class="p-4 border border-gray-300">Utilization</th>
+                    </tr>
+                </thead>
+                <tbody id="licenses-table-body" class="bg-[#E6F0FA]">
+                    <tr class="hover:bg-gray-200">
+                        <!-- Data will be dynamically inserted here -->
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+</create_file>
